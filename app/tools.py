@@ -1,3 +1,6 @@
+from langchain.tools import tool
+
+
 mock_data = [
     {
         "order_id": 1001,
@@ -31,11 +34,34 @@ mock_data = [
     }
 ]
 
+@tool
 def get_order_details(order_id: str):
+    """
+    Simulates fetching order details from a database or external service."""
     
     for order in mock_data:
         if order["order_id"] == int(order_id):
             return order
     return {"order_id": order_id, "status": "not found"}
+
+@tool
+def cancel_order(order_id: str):
+    """
+    Simulates canceling an order.
+    """
+    for order in mock_data:
+        if order["order_id"] == int(order_id):
+            if order["status"] in ["Pending", "Processing"]:
+                order["status"] = "Canceled"
+                return {"order_id": order_id, "status": "Canceled"}
+
+            
+            
+            else:
+                return {"order_id": order_id, "status": f"Cannot cancel, current status: {order['status']}"}
+    return {"order_id": order_id, "status": "not found"}
+
+
+
 
 

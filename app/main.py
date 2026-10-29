@@ -1,34 +1,53 @@
-from fastapi import FastAPI
 
-from tools import get_order_details
+import logging
+import re
+
+from fastapi import FastAPI, HTTPException
+
+from agent import get_support_response
 from schema import ChatRequest, SupportResponse
-app=FastAPI()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="Customer Support API")
+
+
+@app.get("/")
+def home():
+    return {"message": "Customer Support API is running"}
+
 
 @app.get("/health")
-def check_health():
+def health():
     return {"status": "healthy"}
 
 
-@app.post("/support/chat",response_model=SupportResponse)
-def chat_support(request: ChatRequest):
-    customer_id = request.customer_id
-    message = request.message
+@app.post("/chat", response_model=SupportResponse)
+def chat(request: ChatRequest):
+    try:
+        answer = get_support_response(
+            customer_id=request.customer_id,
+            message=request.message,
+        )
 
-    if not customer_id or not message:
-        return {"status": "error", "answer": "Missing customer_id or message"}
+        match = re.search(
+            r"\b(\d{4,})\b",
+            request.message,
+        )
 
-    # Simulate a support response based on the message
-    if "order" in message.lower():
-        order_id = message.split()[-1]  # Assume the last word is the order ID
-        order_details = get_order_details(order_id)
-        if order_details["status"] == "not found":
-            return {"status": "error", "answer": f"Order {order_id} not found"}
-        else:
-            return {
-                "status": "success",
-                "answer": f"Your order {order_id} is currently {order_details['status']}. Estimated delivery: {order_details['estimated_delivery']}",
-                "order_id": order_id
-            }
-    else:
-        return {"status": "success", "answer": "Thank you for reaching out. How can we assist you further?"}
-# declare Declare SupportResponse as the response model.
+        return SupportResponse(
+            status="success",
+            answer=answer,
+            order_id=match.group(1) if match else None,
+            ticket_id=None,
+        )
+
+    except Exception as exc:
+        logger.exception("Error processing customer support request")
+
+        # Show details during local development only.
+        raise HTTPException(
+            status_code=502,
+            detail=f"Support agent failed: {str(exc)}",
+        ) from exc
